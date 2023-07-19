@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Threatened Tree Species Navigation Webapp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.4.1/mapbox-gl.css" rel="stylesheet">
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+    #zoom-controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+    }
+    .marker {
+      background-image: url('marker.png');
+      background-size: cover;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+    }
+    .variable-bar {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .variable-checkbox {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="zoom-controls" class="mapboxgl-control-container">
+    <button id="zoom-in" class="mapboxgl-ctrl-zoom-in">+</button>
+    <button id="zoom-out" class="mapboxgl-ctrl-zoom-out">-</button>
+  </div>
+  <div class="variable-bar">
+    <label class="variable-checkbox">
+      <input type="checkbox" id="trees-checkbox"> Trees
+    </label>
+    <label class="variable-checkbox">
+      <input type="checkbox" id="mytrees-checkbox"> My Trees
+    </label>
+  </div>
+
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.4.1/mapbox-gl.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.1.0/mapbox-gl-directions.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.3/mapbox-gl-geocoder.min.js"></script>
+
+  <script>
+    mapboxgl.accessToken ='pk.eyJ1IjoicG9pc29ubWFwcyIsImEiOiJjbGRycnRxcGowbjZ1M29wOWhzdWF3bGNzIn0.cktV7JL0ukEkILsfauPa6A';
+
+    var trees = [
+      {
+        name: 'Tree 1',
+        coordinates: [3.906723888, 7.440972088],
+        description: 'This is the description of Tree 1.'
+      },
+      {
+        name: 'Tree 2',
+        coordinates: [3.0906723888, 7.0440972088],
+        description: 'This is the description of Tree 2.'
+      },
+      // Add more tree objects as needed
+    ];
+
+    var mytrees = [
+      {
+        name: 'Terminalia superba',
+        coordinates: [3.906723888, 7.440972088],
+        description: 'This is the description of Terminalia superba.'
+      },
+      {
+        name: 'Terminalia Ivorensis',
+        coordinates: [3.906723888, 7.440972088],
+        description: 'This is the description of Terminalia Ivorensis.'
+      },
+      {
+        name: 'Khaya senealensis',
+        coordinates: [3.906723888, 7.440972088],
+        description: 'This is the description of Khaya senealensis.'
+      }
+      // Add more tree objects as needed
+    ];
+
+    var map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v11',
+      center: [3.906723888, 7.440972088], // Set initial map center
+      zoom: 12, // Set initial map zoom level
+      pitch: 45, // Set the map pitch (tilt)
+      bearing: -45 // Set the map bearing (rotation)
+    });
+
+    var directions = new MapboxDirections({
+      accessToken: mapboxgl.accessToken,
+      unit: 'metric', // Display directions in kilometers
+      alternatives: true // Enable alternative routes
+    });
+
+    directions.on('reroute', function() {
+      // The user has deviated from the initial route
+      console.log('Rerouting...');
+    });
+
+    map.addControl(directions, 'top-left');
+
+    // Initialize SpeechSynthesisUtterance object
+    var speechUtterance = new SpeechSynthesisUtterance();
+    speechUtterance.lang = 'en-US'; // Set language for speech synthesis
+
+    directions.on('route', function(e) {
+      if (e.route && e.route[0] && e.route[0].legs && e.route[0].legs.length > 0) {
+        var steps = e.route[0].legs[0].steps;
+        var currentStepIndex = 0;
+
+        directions.on('routeStep', function(e) {
+          currentStepIndex = e.stepIndex;
+          speakCurrentStep();
+        });
+
+        function speakCurrentStep() {
+          var currentStep = steps[currentStepIndex];
+          var currentInstruction = currentStep.maneuver.instruction;
+          var currentDistance = currentStep.distance;
+
+          // Convert distance to kilometers and round to two decimal places
+          var distanceInKilometers = (currentDistance / 1000).toFixed(2);
+
+          // Combine instruction and distance into a single text
+          var text = currentInstruction + ' (' + distanceInKilometers + ' kilometers)';
+
+          // Use SpeechSynthesis API to speak the text
+          speakText(text);
+        }
+
+        // Start speaking the first step
+        speakCurrentStep();
+      }
+    });
+
+    var treeMarkers = [];
+
+    function addTreesMarkers() {
+      trees.forEach(function(tree) {
+        var el = document.createElement('div');
+        el.className = 'marker';
+
+        var marker = new mapboxgl.Marker(el)
+          .setLngLat(tree.coordinates)
+          .setPopup(new mapboxgl.Popup().setHTML('<h3>' + tree.name + '</h3><p>' + tree.description + '</p>'));
+
+        treeMarkers.push(marker);
+      });
+
+      if (treesCheckbox.checked) {
+        treeMarkers.forEach(function(marker) {
+          marker.addTo(map);
+        });
+      }
+    }
+
+    function removeTreesMarkers() {
+      treeMarkers.forEach(function(marker) {
+        marker.remove();
+      });
+      treeMarkers = [];
+    }
+
+    var myTreeMarkers = [];
+
+    function addMyTreesMarkers() {
+      mytrees.forEach(function(tree) {
+        var el = document.createElement('div');
+        el.className = 'marker';
+
+        var marker = new mapboxgl.Marker(el)
+          .setLngLat(tree.coordinates)
+          .setPopup(new mapboxgl.Popup().setHTML('<h3>' + tree.name + '</h3><p>' + tree.description + '</p>'));
+
+        myTreeMarkers.push(marker);
+      });
+
+      if (mytreesCheckbox.checked) {
+        myTreeMarkers.forEach(function(marker) {
+          marker.addTo(map);
+        });
+      }
+    }
+
+    function removeMyTreesMarkers() {
+      myTreeMarkers.forEach(function(marker) {
+        marker.remove();
+      });
+      myTreeMarkers = [];
+    }
+
+    var treesCheckbox = document.getElementById('trees-checkbox');
+    var mytreesCheckbox = document.getElementById('mytrees-checkbox');
+
+    treesCheckbox.addEventListener('change', function() {
+      if (treesCheckbox.checked) {
+        addTreesMarkers();
+      } else {
+        removeTreesMarkers();
+      }
+    });
+
+    mytreesCheckbox.addEventListener('change', function() {
+      if (mytreesCheckbox.checked) {
+        addMyTreesMarkers();
+      } else {
+        removeMyTreesMarkers();
+      }
+    });
+
+    // Geocoder
+    var geocoder = new MapboxGeocoder({
+      accessToken: mapboxgl.accessToken,
+      mapboxgl: mapboxgl
+    });
+
+    // Add geolocate control to the map.
+    map.addControl(
+      new mapboxgl.GeolocateControl({
+        positionOptions: {
+          enableHighAccuracy: true
+        },
+        // When active, the map will receive updates to the device's location as it changes.
+        trackUserLocation: true,
+        // Draw an arrow next to the location dot to indicate which direction the device is heading.
+        showUserHeading: true
+      })
+    );
+
+    document.getElementById('zoom-in').addEventListener('click', function() {
+      map.zoomIn();
+    });
+
+    document.getElementById('zoom-out').addEventListener('click', function() {
+      map.zoomOut();
+    });
+
+    navigator.geolocation.getCurrentPosition(function(position) {
+      var userLocation = [position.coords.longitude, position.coords.latitude];
+
+      map.flyTo({
+        center: userLocation,
+        zoom: 14
+      });
+    });
+
+    // Additional suggestions
+    // Implement map controls
+    map.addControl(new mapboxgl.NavigationControl());
+    map.addControl(new mapboxgl.FullscreenControl());
+
+    // Map events
+    map.on('click', function(e) {
+      var features = map.queryRenderedFeatures(e.point);
+      console.log(features);
+    });
+
+    // Speech Synthesis
+    function speakText(text) {
+      var speechUtterance = new SpeechSynthesisUtterance(text);
+      speechUtterance.lang = 'en-US'; // Set language for speech synthesis
+      speechUtterance.rate = 1.2; // Adjust the rate of speech as needed
+      speechSynthesis.speak(speechUtterance);
+    }
+  </script>
+</body>
+</html>
